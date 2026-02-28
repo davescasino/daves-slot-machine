@@ -3,76 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dave's 5-Reel Auto-Roller</title>
+    <title>Dave's Slot Machine</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Custom font for the game display */
         @import url('https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@700&display=swap');
         
         body {
             font-family: 'Chivo Mono', monospace;
-            background-color: #1a1a1a;
+            background-color: #1a1a1a; 
             color: #f0f0f0;
             display: flex;
+            flex-direction: column; /* Stack button and container vertically */
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             padding: 1rem; 
         }
+
+        /* --- ADDED: Back to Hub Button Styles --- */
+        .back-hub {
+            position: relative; 
+            display: inline-block; 
+            margin: 10px 0 20px 0;
+            padding: 10px 15px; 
+            background: #333; 
+            color: #ffd700;
+            text-decoration: none; 
+            border-radius: 5px; 
+            font-weight: bold;
+            border: 1px solid #ffd700; 
+            z-index: 9999; 
+            transition: 0.3s;
+        }
+        @media (min-width: 768px) {
+            .back-hub { position: absolute; top: 20px; left: 20px; margin: 0; }
+        }
+        .back-hub:hover { background: #ffd700; color: #000; box-shadow: 0 0 10px #ffd700; }
         
         .slot-container {
-            max-width: 550px; 
+            max-width: 400px; 
             width: 100%;
             background-color: #2c2c2c;
             border: 8px solid #ffd700;
-            box-shadow: 0 0 25px rgba(255, 215, 0, 0.2);
-            padding: 1.5rem; 
-            border-radius: 1.5rem;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(0, 0, 0, 0.5);
+            padding: 1rem; 
         }
 
         .reel {
-            font-size: 2.8rem;
-            line-height: 1.2;
-            padding: 0.8rem 0;
+            font-size: 4rem;
+            line-height: 1;
+            padding: 1rem 0;
             text-align: center;
-            flex: 1;
-            border-right: 1px solid #333;
+            user-select: none;
         }
-        .reel:last-child { border-right: none; }
         
         @keyframes spinning {
             0% { transform: translateY(0); }
-            100% { transform: translateY(-30%); }
+            100% { transform: translateY(-50%); }
         }
 
         .reel.spinning {
             animation: spinning 0.1s linear infinite;
         }
 
-        /* Green Spin Button */
         .button-spin {
-            background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
-            box-shadow: 0 4px 0 #065f46;
+            background: linear-gradient(180deg, #ff416c 0%, #ff4b2b 100%);
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 0 #c70039;
         }
 
+        .button-spin:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #c70039;
+        }
+        
         .button-spin:active:not(:disabled) {
             transform: translateY(2px);
-            box-shadow: 0 2px 0 #065f46;
+            box-shadow: 0 2px 0 #c70039;
         }
 
-        /* Orange Auto Button */
-        .button-auto {
-            background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
-            box-shadow: 0 4px 0 #92400e;
-        }
-        .button-auto.active {
-            background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
-            box-shadow: 0 4px 0 #7f1d1d;
-        }
-
+        .message-win { color: #10b981; font-weight: 700; }
         .message-jackpot {
             color: #ffd700;
             text-shadow: 0 0 10px #ffd700;
-            animation: pulse 0.8s infinite;
+            animation: pulse 1s infinite;
         }
         
         @keyframes pulse {
@@ -80,169 +95,16 @@
             50% { transform: scale(1.05); }
         }
     </style>
-    <script type="module">
-        let balance = 1000;
-        let betAmount = 10;
-        let isSpinning = false;
-        let isAutoSpinning = false;
-        let autoSpinTimeout = null;
-
-        const SYMBOLS = [
-            '🍒', '🍒', '🍒', '🍋', '🍋', '🍋', 
-            '💰', '💰', '7️⃣', '7️⃣', '💀'
-        ]; 
-        
-        function getRandomSymbol() {
-            return SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-        }
-
-        function checkWin(reels) {
-            const counts = {};
-            reels.forEach(s => counts[s] = (counts[s] || 0) + 1);
-            delete counts['💀'];
-
-            for (let s in counts) {
-                if (counts[s] === 5) return s === '7️⃣' ? 250 : (s === '💰' ? 100 : 50);
-                if (counts[s] === 4) return 15;
-                if (counts[s] === 3) return 3; 
-            }
-            return 0;
-        }
-
-        async function spin() {
-            if (isSpinning || balance < betAmount) {
-                if (balance < betAmount) stopAutoSpin();
-                return;
-            }
-            
-            isSpinning = true;
-            balance -= betAmount;
-            updateUI();
-
-            const reelEls = [1,2,3,4,5].map(i => document.getElementById(`reel${i}`));
-            const msg = document.getElementById('message');
-
-            reelEls.forEach(r => r.classList.add('spinning'));
-            msg.textContent = isAutoSpinning ? "Auto-Spinning..." : "Good luck...";
-
-            await new Promise(r => setTimeout(r, 800));
-
-            const results = [];
-            for (let i = 0; i < 5; i++) {
-                await new Promise(r => setTimeout(r, 1500 / 10)); // Faster stop sequence
-                const sym = getRandomSymbol();
-                results.push(sym);
-                reelEls[i].classList.remove('spinning');
-                reelEls[i].textContent = sym;
-            }
-            
-            const mult = checkWin(results);
-            const win = mult * betAmount;
-            balance += win;
-
-            if (mult >= 50) {
-                msg.className = "message-jackpot text-2xl mt-4";
-                msg.textContent = `JACKPOT! +$${win}`;
-            } else if (win > 0) {
-                msg.className = "text-green-400 text-xl mt-4 font-bold";
-                msg.textContent = `WINNER: $${win}`;
-            } else {
-                msg.className = "text-gray-500 text-lg mt-4";
-                msg.textContent = "Try again!";
-            }
-
-            isSpinning = false;
-            updateUI();
-
-            // Handle the next Auto-Spin
-            if (isAutoSpinning) {
-                if (balance >= betAmount) {
-                    autoSpinTimeout = setTimeout(spin, 1000); // 1 second delay between spins
-                } else {
-                    stopAutoSpin();
-                }
-            }
-        }
-
-        function toggleAutoSpin() {
-            if (isAutoSpinning) {
-                stopAutoSpin();
-            } else {
-                isAutoSpinning = true;
-                const btn = document.getElementById('autoButton');
-                btn.textContent = "STOP AUTO";
-                btn.classList.add('active');
-                if (!isSpinning) spin();
-            }
-        }
-
-        function stopAutoSpin() {
-            isAutoSpinning = false;
-            clearTimeout(autoSpinTimeout);
-            const btn = document.getElementById('autoButton');
-            btn.textContent = "AUTO-SPIN";
-            btn.classList.remove('active');
-        }
-
-        function updateUI() {
-            document.getElementById('balance').textContent = `$${balance.toLocaleString()}`;
-            document.getElementById('spinButton').disabled = isSpinning || balance < betAmount;
-            
-            if (balance <= 0) {
-                document.getElementById('message').textContent = "GAME OVER";
-                document.getElementById('restartButton').classList.remove('hidden');
-                document.getElementById('controls').classList.add('hidden');
-                stopAutoSpin();
-            }
-        }
-
-        window.spin = spin;
-        window.toggleAutoSpin = toggleAutoSpin;
-        window.updateBet = (val) => { 
-            const n = parseInt(val);
-            if(n > 0 && n <= balance) betAmount = n;
-        };
-        window.restart = () => location.reload();
-    </script>
-</head>
+    </head>
 <body>
-    <div class="slot-container">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <p class="text-xs text-gray-400">CREDITS</p>
-                <h2 id="balance" class="text-2xl font-bold text-green-400">$1000</h2>
-            </div>
-            <div class="text-right">
-                <p class="text-xs text-gray-400">BET</p>
-                <input type="number" id="bet" value="10" class="w-16 bg-black text-center border border-gray-700 rounded text-yellow-500 font-bold" onchange="updateBet(this.value)">
-            </div>
+
+    <a href="https://davescasino.github.io/davescasino" class="back-hub">⬅ Back to Hub</a>
+
+    <div class="slot-container m-4 rounded-xl">
+        <h1 class="text-3xl font-bold text-center mb-4 text-yellow-400">
+            <span class="text-4xl">🎰</span> Dave's Slot Machine
+        </h1>
+
         </div>
-
-        <div class="flex bg-black rounded-xl border-4 border-gray-800 overflow-hidden shadow-inner mb-6">
-            <div id="reel1" class="reel">💰</div>
-            <div id="reel2" class="reel">🍒</div>
-            <div id="reel3" class="reel">7️⃣</div>
-            <div id="reel4" class="reel">🍋</div>
-            <div id="reel5" class="reel">💰</div>
-        </div>
-
-        <div id="controls" class="flex gap-4">
-            <button id="spinButton" onclick="spin()" class="button-spin flex-2 w-full py-4 rounded-xl text-white font-black text-2xl tracking-widest transition-all">SPIN</button>
-            <button id="autoButton" onclick="toggleAutoSpin()" class="button-auto flex-1 w-full py-4 rounded-xl text-white font-bold text-sm tracking-tighter transition-all">AUTO-SPIN</button>
-        </div>
-
-        <button id="restartButton" onclick="restart()" class="hidden bg-red-600 w-full py-4 rounded-xl text-white font-black text-2xl">RESTART</button>
-
-        <p id="message" class="text-center mt-4 h-8 font-bold text-gray-400">Welcome to the 5-Reel Auto-Roller</p>
-
-        <div class="mt-6 pt-4 border-t border-gray-800 grid grid-cols-2 gap-x-4 text-[11px] text-gray-500">
-            <p>5 x 7️⃣: 250x</p>
-            <p>4 x Any: 15x</p>
-            <p>5 x 💰: 100x</p>
-            <p>3 x Any: 3x</p>
-            <p>5 x Fruit: 50x</p>
-            <p class="text-red-900">💀: Blocker</p>
-        </div>
-    </div>
 </body>
 </html>
