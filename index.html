@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dave's 5-Reel High-Roller</title>
+    <title>Dave's 5-Reel Auto-Roller</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@700&display=swap');
@@ -48,6 +48,7 @@
             animation: spinning 0.1s linear infinite;
         }
 
+        /* Green Spin Button */
         .button-spin {
             background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
             box-shadow: 0 4px 0 #065f46;
@@ -56,6 +57,16 @@
         .button-spin:active:not(:disabled) {
             transform: translateY(2px);
             box-shadow: 0 2px 0 #065f46;
+        }
+
+        /* Orange Auto Button */
+        .button-auto {
+            background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+            box-shadow: 0 4px 0 #92400e;
+        }
+        .button-auto.active {
+            background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+            box-shadow: 0 4px 0 #7f1d1d;
         }
 
         .message-jackpot {
@@ -70,13 +81,12 @@
         }
     </style>
     <script type="module">
-        // Basic Game Logic
         let balance = 1000;
         let betAmount = 10;
         let isSpinning = false;
+        let isAutoSpinning = false;
+        let autoSpinTimeout = null;
 
-        // SYMBOL POOL: Skulls are now rare (1 in 10), 7s are premium.
-        // We use a weighted array to control frequency.
         const SYMBOLS = [
             '🍒', '🍒', '🍒', '🍋', '🍋', '🍋', 
             '💰', '💰', '7️⃣', '7️⃣', '💀'
@@ -89,39 +99,37 @@
         function checkWin(reels) {
             const counts = {};
             reels.forEach(s => counts[s] = (counts[s] || 0) + 1);
-
-            // Skulls are "blockers" - they never pay.
             delete counts['💀'];
 
             for (let s in counts) {
-                if (counts[s] === 5) {
-                    return s === '7️⃣' ? 250 : (s === '💰' ? 100 : 50);
-                }
+                if (counts[s] === 5) return s === '7️⃣' ? 250 : (s === '💰' ? 100 : 50);
                 if (counts[s] === 4) return 15;
-                if (counts[s] === 3) return 3; // Reduced from original 10x to keep it tough
+                if (counts[s] === 3) return 3; 
             }
             return 0;
         }
 
         async function spin() {
-            const spinBtn = document.getElementById('spinButton');
-            const msg = document.getElementById('message');
-            const reelEls = [1,2,3,4,5].map(i => document.getElementById(`reel${i}`));
-
-            if (isSpinning || balance < betAmount) return;
+            if (isSpinning || balance < betAmount) {
+                if (balance < betAmount) stopAutoSpin();
+                return;
+            }
             
             isSpinning = true;
             balance -= betAmount;
             updateUI();
 
-            reelEls.forEach(r => r.classList.add('spinning'));
-            msg.textContent = "Good luck...";
+            const reelEls = [1,2,3,4,5].map(i => document.getElementById(`reel${i}`));
+            const msg = document.getElementById('message');
 
-            await new Promise(r => setTimeout(r, 1000));
+            reelEls.forEach(r => r.classList.add('spinning'));
+            msg.textContent = isAutoSpinning ? "Auto-Spinning..." : "Good luck...";
+
+            await new Promise(r => setTimeout(r, 800));
 
             const results = [];
             for (let i = 0; i < 5; i++) {
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 1500 / 10)); // Faster stop sequence
                 const sym = getRandomSymbol();
                 results.push(sym);
                 reelEls[i].classList.remove('spinning');
@@ -145,19 +153,51 @@
 
             isSpinning = false;
             updateUI();
+
+            // Handle the next Auto-Spin
+            if (isAutoSpinning) {
+                if (balance >= betAmount) {
+                    autoSpinTimeout = setTimeout(spin, 1000); // 1 second delay between spins
+                } else {
+                    stopAutoSpin();
+                }
+            }
+        }
+
+        function toggleAutoSpin() {
+            if (isAutoSpinning) {
+                stopAutoSpin();
+            } else {
+                isAutoSpinning = true;
+                const btn = document.getElementById('autoButton');
+                btn.textContent = "STOP AUTO";
+                btn.classList.add('active');
+                if (!isSpinning) spin();
+            }
+        }
+
+        function stopAutoSpin() {
+            isAutoSpinning = false;
+            clearTimeout(autoSpinTimeout);
+            const btn = document.getElementById('autoButton');
+            btn.textContent = "AUTO-SPIN";
+            btn.classList.remove('active');
         }
 
         function updateUI() {
             document.getElementById('balance').textContent = `$${balance.toLocaleString()}`;
-            document.getElementById('spinButton').disabled = balance < betAmount;
+            document.getElementById('spinButton').disabled = isSpinning || balance < betAmount;
+            
             if (balance <= 0) {
                 document.getElementById('message').textContent = "GAME OVER";
                 document.getElementById('restartButton').classList.remove('hidden');
-                document.getElementById('spinButton').classList.add('hidden');
+                document.getElementById('controls').classList.add('hidden');
+                stopAutoSpin();
             }
         }
 
         window.spin = spin;
+        window.toggleAutoSpin = toggleAutoSpin;
         window.updateBet = (val) => { 
             const n = parseInt(val);
             if(n > 0 && n <= balance) betAmount = n;
@@ -186,10 +226,14 @@
             <div id="reel5" class="reel">💰</div>
         </div>
 
-        <button id="spinButton" onclick="spin()" class="button-spin w-full py-4 rounded-xl text-white font-black text-2xl tracking-widest transition-all">SPIN</button>
+        <div id="controls" class="flex gap-4">
+            <button id="spinButton" onclick="spin()" class="button-spin flex-2 w-full py-4 rounded-xl text-white font-black text-2xl tracking-widest transition-all">SPIN</button>
+            <button id="autoButton" onclick="toggleAutoSpin()" class="button-auto flex-1 w-full py-4 rounded-xl text-white font-bold text-sm tracking-tighter transition-all">AUTO-SPIN</button>
+        </div>
+
         <button id="restartButton" onclick="restart()" class="hidden bg-red-600 w-full py-4 rounded-xl text-white font-black text-2xl">RESTART</button>
 
-        <p id="message" class="text-center mt-4 h-8 font-bold text-gray-400">Welcome to the 5-Reel High-Roller</p>
+        <p id="message" class="text-center mt-4 h-8 font-bold text-gray-400">Welcome to the 5-Reel Auto-Roller</p>
 
         <div class="mt-6 pt-4 border-t border-gray-800 grid grid-cols-2 gap-x-4 text-[11px] text-gray-500">
             <p>5 x 7️⃣: 250x</p>
@@ -197,7 +241,7 @@
             <p>5 x 💰: 100x</p>
             <p>3 x Any: 3x</p>
             <p>5 x Fruit: 50x</p>
-            <p class="text-red-900">💀: Loss</p>
+            <p class="text-red-900">💀: Blocker</p>
         </div>
     </div>
 </body>
