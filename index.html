@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dave's 5-Reel Auto-Roller</title>
+    <title>Dave's 5-Reel Slots</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@700&display=swap');
@@ -13,33 +13,27 @@
             background-color: #1a1a1a;
             color: #f0f0f0;
             display: flex;
-            flex-direction: column; /* Stack back button and game vertically */
-            justify-content: center;
+            /* FIX: This keeps the back button on top and the game centered below */
+            flex-direction: column; 
             align-items: center;
+            justify-content: center;
             min-height: 100vh;
-            padding: 1rem; 
+            margin: 0;
+            padding: 10px;
         }
 
-        /* --- Back to Hub Button Styles --- */
+        /* Back Button Styles from race.html */
         .back-hub {
-            position: relative; 
-            display: inline-block; 
-            margin: 10px 0 20px 0;
-            padding: 10px 15px; 
-            background: #333; 
-            color: #ffd700;
-            text-decoration: none; 
-            border-radius: 5px; 
-            font-weight: bold;
-            border: 1px solid #ffd700; 
-            z-index: 9999; 
-            transition: 0.3s;
+            position: relative; display: inline-block; margin: 10px 0 20px 0;
+            padding: 10px 15px; background: #333; color: #ffd700;
+            text-decoration: none; border-radius: 5px; font-weight: bold;
+            border: 1px solid #ffd700; z-index: 9999; transition: 0.3s;
         }
         @media (min-width: 768px) {
             .back-hub { position: absolute; top: 20px; left: 20px; margin: 0; }
         }
         .back-hub:hover { background: #ffd700; color: #000; box-shadow: 0 0 10px #ffd700; }
-        
+
         .slot-container {
             max-width: 550px; 
             width: 100%;
@@ -50,68 +44,24 @@
             border-radius: 1.5rem;
         }
 
-        .reel {
-            font-size: 2.8rem;
-            line-height: 1.2;
-            padding: 0.8rem 0;
-            text-align: center;
-            flex: 1;
-            border-right: 1px solid #333;
-        }
+        .reel { font-size: 2.8rem; line-height: 1.2; padding: 0.8rem 0; text-align: center; flex: 1; border-right: 1px solid #333; }
         .reel:last-child { border-right: none; }
         
-        @keyframes spinning {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(-30%); }
-        }
+        @keyframes spinning { 0% { transform: translateY(0); } 100% { transform: translateY(-30%); } }
+        .reel.spinning { animation: spinning 0.1s linear infinite; }
 
-        .reel.spinning {
-            animation: spinning 0.1s linear infinite;
-        }
-
-        .button-spin {
-            background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
-            box-shadow: 0 4px 0 #065f46;
-        }
-
-        .button-auto {
-            background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
-            box-shadow: 0 4px 0 #92400e;
-        }
-        .button-auto.active {
-            background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
-            box-shadow: 0 4px 0 #7f1d1d;
-        }
-
-        .message-jackpot {
-            color: #ffd700;
-            text-shadow: 0 0 10px #ffd700;
-            animation: pulse 0.8s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
+        .button-spin { background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%); box-shadow: 0 4px 0 #065f46; }
+        .button-auto { background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%); box-shadow: 0 4px 0 #92400e; }
+        .button-auto.active { background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%); box-shadow: 0 4px 0 #7f1d1d; }
     </style>
     <script type="module">
-        let balance = 1000;
-        let betAmount = 10;
-        let isSpinning = false;
-        let isAutoSpinning = false;
-        let autoSpinTimeout = null;
-
+        let balance = 1000, betAmount = 10, isSpinning = false, isAutoSpinning = false, autoSpinTimeout = null;
         const SYMBOLS = ['🍒', '🍒', '🍒', '🍋', '🍋', '🍋', '💰', '💰', '7️⃣', '7️⃣', '💀']; 
         
-        function getRandomSymbol() {
-            return SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-        }
-
         function checkWin(reels) {
             const counts = {};
             reels.forEach(s => counts[s] = (counts[s] || 0) + 1);
             delete counts['💀'];
-
             for (let s in counts) {
                 if (counts[s] === 5) return s === '7️⃣' ? 250 : (s === '💰' ? 100 : 50);
                 if (counts[s] === 4) return 15;
@@ -121,40 +71,57 @@
         }
 
         async function spin() {
-            if (isSpinning || balance < betAmount) {
-                if (balance < betAmount) stopAutoSpin();
-                return;
-            }
-            
-            isSpinning = true;
-            balance -= betAmount;
-            updateUI();
-
+            if (isSpinning || balance < betAmount) { if (balance < betAmount) stopAutoSpin(); return; }
+            isSpinning = true; balance -= betAmount; updateUI();
             const reelEls = [1,2,3,4,5].map(i => document.getElementById(`reel${i}`));
-            const msg = document.getElementById('message');
-
             reelEls.forEach(r => r.classList.add('spinning'));
-            msg.textContent = isAutoSpinning ? "Auto-Spinning..." : "Good luck...";
-
             await new Promise(r => setTimeout(r, 800));
-
             const results = [];
             for (let i = 0; i < 5; i++) {
                 await new Promise(r => setTimeout(r, 150)); 
-                const sym = getRandomSymbol();
+                const sym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
                 results.push(sym);
                 reelEls[i].classList.remove('spinning');
                 reelEls[i].textContent = sym;
             }
-            
             const mult = checkWin(results);
-            const win = mult * betAmount;
-            balance += win;
+            balance += (mult * betAmount);
+            document.getElementById('message').textContent = mult > 0 ? `WINNER: $${mult * betAmount}` : "Try again!";
+            isSpinning = false; updateUI();
+            if (isAutoSpinning && balance >= betAmount) autoSpinTimeout = setTimeout(spin, 1000);
+        }
 
-            if (mult >= 50) {
-                msg.className = "message-jackpot text-2xl mt-4";
-                msg.textContent = `JACKPOT! +$${win}`;
-            } else if (win > 0) {
-                msg.className = "text-green-400 text-xl mt-4 font-bold";
-                msg.textContent = `WINNER: $${win}`;
-            } else {
+        function toggleAutoSpin() {
+            isAutoSpinning = !isAutoSpinning;
+            const btn = document.getElementById('autoButton');
+            btn.textContent = isAutoSpinning ? "STOP AUTO" : "AUTO-SPIN";
+            btn.classList.toggle('active', isAutoSpinning);
+            if (isAutoSpinning && !isSpinning) spin();
+        }
+
+        function stopAutoSpin() { isAutoSpinning = false; clearTimeout(autoSpinTimeout); }
+        function updateUI() { document.getElementById('balance').textContent = `$${balance}`; }
+        window.spin = spin; window.toggleAutoSpin = toggleAutoSpin;
+        window.updateBet = (v) => { if(v > 0 && v <= balance) betAmount = parseInt(v); };
+    </script>
+</head>
+<body>
+    <a href="https://davescasino.github.io/davescasino" class="back-hub">⬅ Back to Hub</a>
+
+    <div class="slot-container">
+        <div class="flex justify-between items-center mb-4">
+            <div><p class="text-xs text-gray-400">CREDITS</p><h2 id="balance" class="text-2xl font-bold text-green-400">$1000</h2></div>
+            <div class="text-right"><p class="text-xs text-gray-400">BET</p>
+            <input type="number" id="bet" value="10" class="w-16 bg-black text-center border border-gray-700 rounded text-yellow-500 font-bold" onchange="updateBet(this.value)"></div>
+        </div>
+        <div class="flex bg-black rounded-xl border-4 border-gray-800 overflow-hidden mb-6">
+            <div id="reel1" class="reel">💰</div><div id="reel2" class="reel">🍒</div><div id="reel3" class="reel">7️⃣</div><div id="reel4" class="reel">🍋</div><div id="reel5" class="reel">💰</div>
+        </div>
+        <div id="controls" class="flex gap-4">
+            <button id="spinButton" onclick="spin()" class="flex-2 w-full py-4 rounded-xl text-white font-black text-2xl tracking-widest button-spin">SPIN</button>
+            <button id="autoButton" onclick="toggleAutoSpin()" class="flex-1 w-full py-4 rounded-xl text-white font-bold text-xs button-auto">AUTO-SPIN</button>
+        </div>
+        <p id="message" class="text-center mt-4 h-8 font-bold text-gray-400">Welcome!</p>
+    </div>
+</body>
+</html>
